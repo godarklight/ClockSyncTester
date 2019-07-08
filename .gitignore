@@ -1,0 +1,9 @@
+*.orig
+*.dll
+*.userprefs
+[Bb]in/
+[Oo]bj/
+*.suo
+*.csproj.user
+saves/
+.vs/
