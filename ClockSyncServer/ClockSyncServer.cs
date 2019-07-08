@@ -24,7 +24,7 @@ namespace ClockSyncServer
                     bw.Write("CST");
                     bw.Write(0);
                 }
-                heartbeat = ms.GetBuffer();
+                heartbeat = ms.ToArray();
             }
             while (true)
             {
@@ -49,6 +49,7 @@ namespace ClockSyncServer
                         ClientObject client = clients[i];
                         if (DateTime.UtcNow.Ticks > (client.lastTime + 10 * TimeSpan.TicksPerSecond))
                         {
+                            Console.WriteLine("Removing client: " + client.name);
                             clients.RemoveAt(i);
                         }
                     }
@@ -69,7 +70,7 @@ namespace ClockSyncServer
                 }
                 foreach (ClientObject client in clients)
                 {
-                    byte[] sendBytes = ms.GetBuffer();
+                    byte[] sendBytes = ms.ToArray();
                     try
                     {
                         udp.Send(sendBytes, sendBytes.Length, client.endpoint);
@@ -99,8 +100,9 @@ namespace ClockSyncServer
         {
             foreach (ClientObject client in clients)
             {
-                if (client.endpoint.Address == endpoint.Address && client.endpoint.Port == endpoint.Port)
+                if (client.endpoint.ToString() == endpoint.ToString())
                 {
+                    Console.WriteLine("Updating: " + name);
                     client.lastTime = DateTime.UtcNow.Ticks;
                     client.name = name;
                     client.offset = offset;
@@ -121,6 +123,7 @@ namespace ClockSyncServer
             newClient.universeTime = universeTime;
             newClient.rate = rate;
             clients.Add(newClient);
+            Console.WriteLine("Adding new client: " + name);
         }
 
         private static void HandleReceive(IAsyncResult ar)
@@ -178,7 +181,7 @@ namespace ClockSyncServer
                                         bw2.Write(DateTime.UtcNow.Ticks);
 
                                     }
-                                    byte[] sendTimeBytes = ms2.GetBuffer();
+                                    byte[] sendTimeBytes = ms2.ToArray();
                                     udp.Send(sendTimeBytes, sendTimeBytes.Length, endpoint);
                                 }
                             }
@@ -190,7 +193,7 @@ namespace ClockSyncServer
                                 long epoch = br.ReadInt64();
                                 double universeTime = br.ReadDouble();
                                 float rate = br.ReadSingle();
-                                Console.WriteLine(name + ": latency: " + Math.Round(latency / (double)TimeSpan.TicksPerMillisecond, 2) + "ms, offset: " + Math.Round(offset / (double)TimeSpan.TicksPerMillisecond, 2) + "ms.");
+                                //Console.WriteLine(name + ": latency: " + Math.Round(latency / (double)TimeSpan.TicksPerMillisecond, 2) + "ms, offset: " + Math.Round(offset / (double)TimeSpan.TicksPerMillisecond, 2) + "ms.");
                                 lock (clients)
                                 {
                                     UpdateEndpoint(endpoint, name, offset, latency, epoch, universeTime, rate);

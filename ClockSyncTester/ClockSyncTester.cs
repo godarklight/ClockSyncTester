@@ -26,6 +26,7 @@ namespace ClockSyncTester
         private MethodInfo dmpCurrentSubspace;
         private MethodInfo dmpGetSubspace;
         private FieldInfo dmpRateField;
+        private Dictionary<string, ScreenMessage> sms = new Dictionary<string, ScreenMessage>();
         private bool isDMP = false;
 
         public void Awake()
@@ -65,7 +66,7 @@ namespace ClockSyncTester
                     bw.Write("CST");
                     bw.Write(0);
                 }
-                heartbeat = ms.GetBuffer();
+                heartbeat = ms.ToArray();
             }
             IPAddress[] addrs = Dns.GetHostAddresses("godarklight.info.tm");
             IPAddress selectedAddressv4 = null;
@@ -99,6 +100,7 @@ namespace ClockSyncTester
             Debug.Log("ClockSyncTester Loaded!");
         }
 
+        List<string> removeList = new List<string>();
         public void Update()
         {
             if (HighLogic.LoadedSceneIsFlight)
@@ -110,17 +112,37 @@ namespace ClockSyncTester
                     SendTime();
                     Send();
                 }
-                string smText = "";
-                if (DateTime.UtcNow.Ticks > (lastUpdateTime + .1 * TimeSpan.TicksPerSecond))
+                if (DateTime.UtcNow.Ticks > (lastUpdateTime + .2 * TimeSpan.TicksPerSecond))
                 {
                     lastUpdateTime = DateTime.UtcNow.Ticks;
                     foreach (ClientObject client in clients.Values)
                     {
+                        if (DateTime.UtcNow.Ticks > (client.lastTime + 10 * TimeSpan.TicksPerSecond))
+                        {
+                            removeList.Add(client.name);
+                            continue;
+                        }
                         long serverClock = DateTime.UtcNow.Ticks + ouroffset;
                         long timeDiff = serverClock - client.epoch;
                         double timeDiffD = timeDiff / (double)TimeSpan.TicksPerSecond;
                         double universeTimeDiff = Planetarium.GetUniversalTime() - (client.universeTime + timeDiffD * client.rate);
-                        smText = client.name + " UT: " + System.Math.Round(universeTimeDiff * 1000) + "ms, lag: " + System.Math.Round(client.latency / (double)TimeSpan.TicksPerMillisecond) + "ms.\n";
+                        string thisText = client.name + " UT: " + System.Math.Round(universeTimeDiff * 1000) + "ms, lag: " + System.Math.Round(client.latency / (double)TimeSpan.TicksPerMillisecond) + "ms.";
+                        Debug.Log(thisText);
+                        if (sms.ContainsKey(client.name))
+                        {
+                            ScreenMessages.RemoveMessage(sms[client.name]);
+                            sms.Remove(client.name);
+                        }
+                        sms.Add(client.name, ScreenMessages.PostScreenMessage(thisText, 2f, ScreenMessageStyle.UPPER_CENTER));
+                    }
+                    foreach (string removeName in removeList)
+                    {
+                        if (sms.ContainsKey(removeName))
+                        {
+                            ScreenMessages.RemoveMessage(sms[removeName]);
+                            sms.Remove(removeName);
+                            clients.Remove(removeName);
+                        }
                     }
                 }
             }
@@ -136,7 +158,7 @@ namespace ClockSyncTester
                     bw.Write(1);
                     bw.Write(DateTime.UtcNow.Ticks);
                 }
-                byte[] timeBytes = ms.GetBuffer();
+                byte[] timeBytes = ms.ToArray();
                 if (udp4 != null)
                 {
                     udp4.Send(timeBytes, timeBytes.Length);
@@ -169,7 +191,7 @@ namespace ClockSyncTester
                     bw.Write(Planetarium.GetUniversalTime());
                     bw.Write(GetRate());
                 }
-                byte[] sendBytes = ms.GetBuffer();
+                byte[] sendBytes = ms.ToArray();
                 try
                 {
                     if (udp4 != null)
@@ -192,14 +214,14 @@ namespace ClockSyncTester
         private void UpdateEndpoint(string endpointname, long offset, long latency, long epoch, double universeTime, float rate)
         {
             ClientObject client = null;
-            if (clients.ContainsKey(name))
+            if (clients.ContainsKey(endpointname))
             {
-                client = clients[name];
+                client = clients[endpointname];
             }
             else
             {
                 client = new ClientObject();
-                clients.Add(name, client);
+                clients.Add(endpointname, client);
             }
             client.lastTime = DateTime.UtcNow.Ticks;
             client.name = endpointname;
