@@ -141,9 +141,13 @@ namespace ClockSyncTester
                         {
                             ScreenMessages.RemoveMessage(sms[removeName]);
                             sms.Remove(removeName);
+                        }
+                        if (clients.ContainsKey(removeName))
+                        {
                             clients.Remove(removeName);
                         }
                     }
+                    removeList.Clear();
                 }
             }
         }
